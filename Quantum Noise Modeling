@@ -1,0 +1,70 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants (these values can be adjusted based on the specific system and equations in your paper)
+hbar = 1.0545718e-34  # Reduced Planck constant in J.s
+omega = 2 * np.pi * 1e9  # Angular frequency (1 GHz for example)
+eta = 0.9  # Detector efficiency (e.g., 90%)
+T = 1e-6  # Integration time in seconds (1 µs for example)
+L = 0.5  # Channel loss (50%)
+gamma = 0.8  # Coherent efficiency factor (80%)
+xi_el = 1e-3  # Electronic noise (arbitrary units, e.g., 0.001)
+
+# Shot Noise Calculation (Eq. 2)
+def shot_noise(eta, omega, T):
+    """
+    Calculates shot noise based on the detector efficiency, frequency, and integration time.
+    """
+    return np.sqrt(2 * hbar * omega * eta * T)
+
+# Channel Noise Calculation (Eq. 3)
+def channel_noise(L):
+    """
+    Calculates channel noise based on the channel loss.
+    """
+    return np.sqrt(L)
+
+# Detector Electronic Noise Calculation (Eq. 4)
+def detector_noise(xi_el):
+    """
+    Adds fixed detector electronic noise.
+    """
+    return xi_el
+
+# Total Quantum Noise (Sum of all components)
+def total_quantum_noise(eta, omega, T, L, xi_el):
+    """
+    Calculates the total quantum noise by combining shot noise, channel noise, and detector noise.
+    """
+    # Shot noise
+    shot = shot_noise(eta, omega, T)
+    
+    # Channel noise
+    ch_noise = channel_noise(L)
+    
+    # Detector electronic noise
+    el_noise = detector_noise(xi_el)
+    
+    # Total noise
+    total_noise = np.sqrt(shot**2 + ch_noise**2 + el_noise**2)
+    
+    return total_noise
+
+# Simulating the quantum noise over a range of integration times (T)
+T_values = np.linspace(1e-9, 1e-3, 1000)  # Varying integration time from 1 ns to 1 ms
+quantum_noise = np.array([total_quantum_noise(eta, omega, T, L, xi_el) for T in T_values])
+
+# Plot the result
+plt.figure(figsize=(10, 6))
+plt.plot(T_values * 1e6, quantum_noise, label='Total Quantum Noise', color='blue')
+plt.xlabel('Integration Time (µs)')
+plt.ylabel('Quantum Noise (arbitrary units)')
+plt.title('Quantum Noise Simulation: Shot Noise, Channel Noise, and Detector Noise')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Print some results for different integration times
+for T in [1e-9, 1e-6, 1e-3]:
+    noise = total_quantum_noise(eta, omega, T, L, xi_el)
+    print(f"Total quantum noise for T={T*1e6:.2f} µs: {noise:.4f} units")
