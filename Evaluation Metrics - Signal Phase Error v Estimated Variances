@@ -1,0 +1,85 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+# Expectation estimator
+from scipy.stats import norm
+
+# Parameters - Reduced for demonstration
+num_samples = 200 # Reduced for speed
+time_steps = 50   # Reduced for speed
+reference_phase_error_std = 0.05
+signal_phase_error_std = 0.1
+correlation = 0.7
+
+# Generate synthetic dataset
+def generate_correlated_data(num_samples, time_steps, ref_std, signal_std, correlation):
+    ref_phase_error = np.random.normal(0, ref_std, size=(num_samples, time_steps))
+    signal_phase_error = correlation * ref_phase_error + \
+                         np.random.normal(0, np.sqrt(signal_std**2 * (1 - correlation**2)), size=(num_samples, time_steps))
+    return ref_phase_error, signal_phase_error
+
+reference_phase_error, signal_phase_error = generate_correlated_data(
+    num_samples, time_steps, reference_phase_error_std, signal_phase_error_std, correlation
+)
+
+# Prepare data for LSTM
+X = reference_phase_error.reshape(num_samples, time_steps, 1)
+y = signal_phase_error
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale data
+scaler_X = MinMaxScaler()
+X_train = scaler_X.fit_transform(X_train.reshape(-1, 1)).reshape(X_train.shape)
+X_test = scaler_X.transform(X_test.reshape(-1, 1)).reshape(X_test.shape)
+
+scaler_y = MinMaxScaler()
+y_train = scaler_y.fit_transform(y_train)
+y_test = scaler_y.transform(y_test)
+
+# Build LSTM Model (Model 11 Example - Simplified)
+model = Sequential()
+model.add(LSTM(32, activation='relu', input_shape=(time_steps, 1), return_sequences=True))  # Added return_sequences
+model.add(LSTM(16, activation='relu'))  # Another LSTM layer
+model.add(Dense(time_steps))
+
+model.compile(optimizer='adam', loss='mse')
+
+# Train model
+model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=0)
+
+# Make predictions
+y_pred = model.predict(X_test)
+
+# Inverse transform
+y_pred = scaler_y.inverse_transform(y_pred)
+y_test = scaler_y.inverse_transform(y_test)
+X_test = scaler_X.inverse_transform(X_test.reshape(-1, 1)).reshape(X_test.shape)
+X_test = X_test.reshape(X_test.shape[0], X_test.shape[1]) #Remove the last dimension
+
+# Expectation estimator (Simple example - mean of reference phase error)
+expectation_estimator = np.mean(X_test, axis=1) #Mean over time steps
+expectation_estimator = np.tile(expectation_estimator, (time_steps, 1)).T #Repeat for each time step
+
+
+# Plotting - Focusing on a single sample from the test set
+sample_index = 0
+plt.figure(figsize=(12, 6))
+
+plt.plot(X_test[sample_index], color='grey', label='ΔφR (Reference Phase Error)')
+plt.plot(y_test[sample_index], color='red', label='True ΔφS (Signal Phase Error)')
+plt.plot(y_pred[sample_index], color='black', label='NN Estimate Δφ̃S')
+plt.plot(expectation_estimator[sample_index], color='blue', label='Expectation Estimator Output')
+
+plt.xlabel('Time Step')
+plt.ylabel('Phase Error')
+plt.title('Signal Phase Error Estimation Results (Model 11 Example)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
