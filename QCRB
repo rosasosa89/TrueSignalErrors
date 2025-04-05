@@ -1,0 +1,63 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants (adjust these as per your system setup)
+average_photon_number = 1000  # Average photon number <n> (e.g., 1000 photons per pulse)
+hbar = 1.0545718e-34  # Reduced Planck constant in J.s (optional if you need it)
+omega = 2 * np.pi * 1e9  # Angular frequency (1 GHz for example)
+integration_time = 1e-6  # Integration time in seconds (1 µs)
+eta = 0.9  # Detector efficiency (e.g., 90%)
+
+# QCRB for phase estimation (for coherent states)
+def compute_qcrb(average_photon_number):
+    """
+    Compute the Quantum Cramer-Rao Bound (QCRB) for phase estimation of a coherent state.
+    QCRB = 1 / (2 * <n>) where <n> is the average photon number.
+    """
+    qcrb = 1 / (2 * average_photon_number)
+    return qcrb
+
+# Example function for LSTM-based phase estimation (dummy values for now)
+def lstm_estimator():
+    """
+    Simulate the LSTM phase estimation (dummy values).
+    Here you would implement your LSTM model for phase error estimation.
+    """
+    # Dummy phase error estimations from the LSTM model
+    phase_error_lstm = 0.0065  # Example average variance (adjust based on your actual LSTM results)
+    return phase_error_lstm
+
+# Example function for expectation-based phase estimation (dummy values for now)
+def expectation_estimator():
+    """
+    Simulate the expectation phase estimation (dummy values).
+    Here you would implement your expectation model for phase error estimation.
+    """
+    # Dummy phase error estimations from the expectation model
+    phase_error_expectation = 0.0063  # Example average variance (adjust based on your actual expectation model)
+    return phase_error_expectation
+
+# Compute the QCRB
+qcrb_value = compute_qcrb(average_photon_number)
+
+# Get the phase error estimations from LSTM and expectation estimators
+lstm_phase_error = lstm_estimator()
+expectation_phase_error = expectation_estimator()
+
+# Print the results for comparison
+print(f"QCRB for phase estimation: {qcrb_value:.6f}")
+print(f"LSTM phase error estimation: {lstm_phase_error:.6f}")
+print(f"Expectation phase error estimation: {expectation_phase_error:.6f}")
+
+# Compare the results visually
+estimators = ['QCRB', 'LSTM Estimator', 'Expectation Estimator']
+errors = [qcrb_value, lstm_phase_error, expectation_phase_error]
+
+plt.figure(figsize=(10, 6))
+plt.bar(estimators, errors, color=['red', 'blue', 'green'])
+plt.xlabel('Estimator Type')
+plt.ylabel('Phase Error (Variance)')
+plt.title('Comparison of Quantum Cramér-Rao Bound (QCRB) with Estimator Models')
+plt.yscale('log')  # Log scale for better visualization if errors span large range
+plt.grid(True)
+plt.show()
