@@ -1,0 +1,86 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from scipy.stats import norm
+
+# Parameters
+num_samples = 500
+time_steps = 100
+reference_phase_error_std = 0.05
+signal_phase_error_std = 0.1
+correlation = 0.7
+
+# Generate synthetic dataset (same as before)
+def generate_correlated_data(num_samples, time_steps, ref_std, signal_std, correlation):
+    ref_phase_error = np.random.normal(0, ref_std, size=(num_samples, time_steps))
+    signal_phase_error = correlation * ref_phase_error + \
+                         np.random.normal(0, np.sqrt(signal_std**2 * (1 - correlation**2)), size=(num_samples, time_steps))
+    return ref_phase_error, signal_phase_error
+
+reference_phase_error, signal_phase_error = generate_correlated_data(
+    num_samples, time_steps, reference_phase_error_std, signal_phase_error_std, correlation
+)
+
+# Prepare data for LSTM
+X = reference_phase_error.reshape(num_samples, time_steps, 1)
+y = signal_phase_error
+
+# Split and scale data (same as before)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+scaler_X = MinMaxScaler()
+X_train = scaler_X.fit_transform(X_train.reshape(-1, 1)).reshape(X_train.shape)
+X_test = scaler_X.transform(X_test.reshape(-1, 1)).reshape(X_test.shape)
+
+scaler_y = MinMaxScaler()
+y_train = scaler_y.fit_transform(y_train)
+y_test = scaler_y.transform(y_test)
+
+# Build and train LSTM Model (same as before)
+model = Sequential()
+model.add(LSTM(32, activation='relu', input_shape=(time_steps, 1), return_sequences=True))
+model.add(LSTM(16, activation='relu'))
+model.add(Dense(time_steps))
+
+model.compile(optimizer='adam', loss='mse')
+model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=0)
+
+# Make predictions
+y_pred = model.predict(X_test)
+
+# Inverse transform
+y_pred = scaler_y.inverse_transform(y_pred)
+y_test = scaler_y.inverse_transform(y_test)
+X_test = scaler_X.inverse_transform(X_test.reshape(-1, 1)).reshape(X_test.shape)
+
+# Expectation estimator (simple example - mean of reference phase error)
+expectation_estimator = np.mean(X_test, axis=1)
+expectation_estimator = np.tile(expectation_estimator, (time_steps, 1)).T
+expectation_estimator = expectation_estimator.reshape(y_test.shape)
+
+# Calculate estimation variance
+lstm_variance = np.var(y_pred - y_test, axis=0)
+expectation_variance = np.var(expectation_estimator - y_test, axis=0)
+
+# Plotting
+plt.figure(figsize=(12, 6))
+
+plt.plot(lstm_variance, color='black', label='LSTM Estimation Variance')
+plt.plot(expectation_variance, color='blue', label='Expectation Estimator Variance')
+
+plt.xlabel('Time Step')
+plt.ylabel('Estimation Variance')
+plt.title('Estimation Variance Comparison')
+plt.legend()
+plt.grid(True)
+plt.yscale('log')  # Using log scale for better visualization
+plt.tight_layout()
+plt.show()
+
+# Print average variances
+print(f"Average LSTM Estimation Variance: {np.mean(lstm_variance)}")
+print(f"Average Expectation Estimator Variance: {np.mean(expectation_variance)}")
