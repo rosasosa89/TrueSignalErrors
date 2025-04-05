@@ -1,0 +1,55 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Simulate the coherent signal (assuming phase and amplitude are known)
+def generate_coherent_signal(phase, amplitude=1.0, num_samples=1000):
+    """
+    Generate a coherent signal with a known phase.
+    """
+    t = np.linspace(0, 1, num_samples)
+    I = amplitude * np.cos(phase + 2 * np.pi * t)  # In-phase component
+    Q = amplitude * np.sin(phase + 2 * np.pi * t)  # Quadrature component
+    return t, I, Q
+
+# Phase correction using estimated phase (˜∆ϕS)
+def correct_signal(I, Q, estimated_phase_error):
+    """
+    Correct the signal using the estimated phase error (˜∆ϕS).
+    """
+    I_corrected = I * np.cos(estimated_phase_error) - Q * np.sin(estimated_phase_error)
+    Q_corrected = I * np.sin(estimated_phase_error) + Q * np.cos(estimated_phase_error)
+    return I_corrected, Q_corrected
+
+# Example: True phase (phi) and estimated phase error (˜∆ϕS)
+true_phase = np.pi / 4  # True phase of the signal (e.g., 45 degrees)
+estimated_phase_error = 0.05  # Estimated phase error (˜∆ϕS)
+
+# Generate a coherent signal
+t, I, Q = generate_coherent_signal(true_phase)
+
+# Apply phase correction to the signal
+I_corrected, Q_corrected = correct_signal(I, Q, estimated_phase_error)
+
+# Plot the results
+plt.figure(figsize=(12, 6))
+
+# Plot the original (uncorrected) signal
+plt.subplot(1, 2, 1)
+plt.plot(t, I, label='I (Original)', color='blue')
+plt.plot(t, Q, label='Q (Original)', color='red')
+plt.title('Original Coherent Signal')
+plt.xlabel('Time')
+plt.ylabel('Amplitude')
+plt.legend()
+
+# Plot the corrected signal
+plt.subplot(1, 2, 2)
+plt.plot(t, I_corrected, label='I (Corrected)', color='blue')
+plt.plot(t, Q_corrected, label='Q (Corrected)', color='red')
+plt.title('Corrected Coherent Signal using ˜∆ϕS')
+plt.xlabel('Time')
+plt.ylabel('Amplitude')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
