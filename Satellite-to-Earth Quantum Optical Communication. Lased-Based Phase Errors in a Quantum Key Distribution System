@@ -1,0 +1,71 @@
+import numpy as np
+import pandas as pd
+
+# Parameters
+num_samples = 1000          # Number of data points
+time_steps = 100            # Time steps for each sample
+mean_photon_count = 0.5     # Average number of photons per pulse
+phase_error_std = 0.1       # Standard deviation of phase errors (radians)
+link_efficiency = 0.2       # Overall link efficiency (transmission losses)
+background_noise = 0.01     # Background noise level
+quantum_bit_error_rate = 0.02  # QBER
+key_rate = 1000  # bits per second
+
+# Channel parameters
+satellite_altitude = 500  # km
+atmospheric_attenuation = 0.1  # dB/km
+
+# Calculate total attenuation in dB
+total_attenuation_db = atmospheric_attenuation * satellite_altitude
+
+# Convert dB to linear scale
+total_attenuation = 10 ** (-total_attenuation_db / 10)
+
+# Function to simulate QKD signals with phase errors
+def simulate_qkd_signal(time_steps, mean_photon_count, phase_error_std, link_efficiency, background_noise, total_attenuation, qber):
+    # Generate ideal QKD signals (0 and 1 states)
+    ideal_signal = np.random.choice([0, 1], size=time_steps)
+    # Simulate phase errors
+    phase_errors = np.random.normal(0, phase_error_std, size=time_steps)
+    # Apply phase errors to the signals
+    noisy_signal = ideal_signal + phase_errors
+    # Account for link efficiency and atmospheric attenuation
+    received_signal = noisy_signal * link_efficiency * total_attenuation
+    # Add background noise
+    received_signal += np.random.normal(0, background_noise, size=time_steps)
+    # Simulate quantum bit errors
+    error_mask = np.random.choice([0, 1], size=time_steps, p=[1 - qber, qber])
+    received_signal = np.where(error_mask == 1, 1 - received_signal, received_signal)
+    # Ensure signals are within reasonable bounds
+    received_signal = np.clip(received_signal, 0, 1)
+    return received_signal
+
+# Generate synthetic dataset
+data = {
+    'Time_Step': np.tile(np.arange(time_steps), num_samples),
+    'Ideal_Signal': np.repeat(np.random.choice([0, 1], size=num_samples), time_steps),
+    'Phase_Error': np.random.normal(0, phase_error_std, size=num_samples * time_steps),
+    'Received_Signal': np.zeros(num_samples * time_steps),
+    'Link_Efficiency': np.full(num_samples * time_steps, link_efficiency),
+    'Background_Noise': np.random.normal(0, background_noise, size=num_samples * time_steps),
+    'Total_Attenuation': np.full(num_samples * time_steps, total_attenuation),
+    'QBER': np.full(num_samples * time_steps, quantum_bit_error_rate)
+}
+
+# Simulate received signals
+for i in range(num_samples):
+    start_index = i * time_steps
+    end_index = (i + 1) * time_steps
+    data['Received_Signal'][start_index:end_index] = simulate_qkd_signal(
+        time_steps, mean_photon_count, phase_error_std, link_efficiency, background_noise, total_attenuation, quantum_bit_error_rate
+    )
+
+# Convert to DataFrame
+df = pd.DataFrame(data)
+# Add a column for key rate
+df['Key_Rate'] = np.random.uniform(key_rate*0.8, key_rate, size=num_samples * time_steps) # Allow 20% fluctuation in Key rate
+
+print(df.head())
+
+# Save to CSV file (optional)
+# df.to_csv('satellite_qkd_data.csv', index=False)
