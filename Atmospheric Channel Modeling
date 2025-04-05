@@ -1,0 +1,68 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants for simulation (adjust as needed based on Eq. 5-8 in the paper)
+H_max = 20e3  # Maximum altitude (20 km)
+h_min = 0     # Ground level
+num_altitudes = 100  # Number of altitude steps
+altitudes = np.linspace(h_min, H_max, num_altitudes)
+
+# Altitude-dependent turbulence model (simplified form)
+def turbulence_strength(h):
+    """
+    Simulates the altitude-dependent turbulence strength C2_n(h).
+    """
+    # Example: turbulence strength decreases with altitude (this can be adjusted as per the model in Eq. 5-8)
+    C2_n = 1e-14 * np.exp(-h / 10000)  # Example exponential decay with altitude
+    return C2_n
+
+def wind_speed(h):
+    """
+    Simulates the altitude-dependent wind speed v(h).
+    """
+    # Example: wind speed increases with altitude (this can be adjusted as per Eq. 6)
+    v = 10 + 0.1 * h  # Example: Wind speed increases with altitude (in m/s)
+    return v
+
+def coherence_time(h):
+    """
+    Simulates the altitude-dependent coherence time τ(h).
+    """
+    # Example: coherence time decreases with altitude (this can be adjusted as per Eq. 7)
+    tau = 10e-3 * np.exp(-h / 5000)  # Example exponential decay
+    return tau
+
+# Simulate phase screen model for beam propagation through atmosphere
+def simulate_phase_screen(altitudes):
+    """
+    Simulate the phase screen model for satellite-to-Earth beam propagation
+    considering atmospheric turbulence, wind speed, and coherence time.
+    """
+    phase_error = np.zeros_like(altitudes)  # Initialize array for phase errors
+
+    for i, h in enumerate(altitudes):
+        # Retrieve altitude-dependent parameters
+        C2_n_h = turbulence_strength(h)
+        v_h = wind_speed(h)
+        tau_h = coherence_time(h)
+
+        # Simulate phase fluctuation due to turbulence at this altitude
+        phase_error[i] = np.random.normal(0, C2_n_h * v_h * tau_h)
+
+    return phase_error
+
+# Generate phase error profile based on the atmospheric model
+phase_errors = simulate_phase_screen(altitudes)
+
+# Plot the simulated phase errors as a function of altitude
+plt.figure(figsize=(10, 6))
+plt.plot(altitudes, phase_errors, label='Phase Error')
+plt.xlabel('Altitude (m)')
+plt.ylabel('Phase Error (radians)')
+plt.title('Simulated Phase Error Profile for Satellite-to-Earth Communication')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Example output
+print(f"Phase error values at different altitudes: {phase_errors[:10]}")  # Print first 10 phase errors for inspection
