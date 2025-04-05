@@ -1,0 +1,63 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+
+# Parameters
+num_samples = 1000
+time_steps = 100
+reference_phase_error_std = 0.05  # Std dev of reference phase error (rad)
+signal_phase_error_std = 0.1   # Std dev of signal phase error (rad)
+correlation = 0.7              # Correlation between reference and signal phase error
+
+# Generate synthetic dataset
+def generate_correlated_data(num_samples, time_steps, ref_std, signal_std, correlation):
+    # Generate reference phase error
+    ref_phase_error = np.random.normal(0, ref_std, size=(num_samples, time_steps))
+    # Generate signal phase error with correlation
+    signal_phase_error = correlation * ref_phase_error + \
+                         np.random.normal(0, np.sqrt(signal_std**2 * (1 - correlation**2)), size=(num_samples, time_steps))
+    return ref_phase_error, signal_phase_error
+
+# Generate correlated reference and signal phase errors
+reference_phase_error, signal_phase_error = generate_correlated_data(
+    num_samples, time_steps, reference_phase_error_std, signal_phase_error_std, correlation
+)
+
+# Flatten the data for training
+X = reference_phase_error.flatten().reshape(-1, 1)
+y = signal_phase_error.flatten()
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train a linear regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Make predictions
+y_pred = model.predict(X_test)
+
+# Evaluate the model
+mse = mean_squared_error(y_test, y_pred)
+print(f"Mean Squared Error: {mse}")
+
+# Create a DataFrame for visualization
+df = pd.DataFrame({
+    'Reference_Phase_Error': X_test.flatten(),
+    'Actual_Signal_Phase_Error': y_test,
+    'Predicted_Signal_Phase_Error': y_pred
+})
+
+print(df.head())
+
+# Optional: Visualize results (requires matplotlib)
+# import matplotlib.pyplot as plt
+# plt.scatter(df['Reference_Phase_Error'], df['Actual_Signal_Phase_Error'], label='Actual')
+# plt.scatter(df['Reference_Phase_Error'], df['Predicted_Signal_Phase_Error'], label='Predicted')
+# plt.xlabel('Reference Phase Error')
+# plt.ylabel('Signal Phase Error')
+# plt.legend()
+# plt.title('Actual vs Predicted Signal Phase Error')
+# plt.show()
