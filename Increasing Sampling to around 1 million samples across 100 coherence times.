@@ -1,0 +1,51 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.optimizers import Adam
+from sklearn.metrics import mean_squared_error
+
+# Constants
+NUM_SAMPLES = 1000000  # Total number of samples (1 million)
+SEQUENCE_LENGTH = 100  # Number of time steps in each sequence (coherence time)
+HIDDEN_SIZE = 64  # Hidden size for the LSTM model
+BATCH_SIZE = 64  # Batch size for training
+EPOCHS = 200  # Number of training epochs
+
+# Simulate synthetic phase error data (adjust this to match your actual data structure)
+def generate_synthetic_data(num_samples, sequence_length):
+    """
+    Generates synthetic data for phase error estimation task.
+    """
+    X = np.random.randn(num_samples, sequence_length, 1)  # Random features
+    y = np.sin(np.linspace(0, 2 * np.pi, num_samples)) + np.random.normal(0, 0.1, num_samples)  # Sinusoidal target with noise
+    return X, y
+
+# Build and train LSTM model
+def train_lstm_model(X_train, y_train, sequence_length, hidden_size, epochs, batch_size):
+    """
+    Train an LSTM model with a given sequence length and hidden size.
+    """
+    model = Sequential()
+    model.add(LSTM(hidden_size, input_shape=(sequence_length, 1), activation='relu'))
+    model.add(Dense(1))  # Single output for phase estimation
+    
+    model.compile(optimizer=Adam(), loss='mean_squared_error')
+    
+    # Train the model
+    model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=2)
+    
+    # Get predictions and compute the variance of estimation
+    y_pred = model.predict(X_train)
+    estimation_variance = mean_squared_error(y_train, y_pred)
+    
+    return estimation_variance, model
+
+# Scale dataset and training time to 1 million samples
+X_train, y_train = generate_synthetic_data(NUM_SAMPLES, SEQUENCE_LENGTH)
+
+# Train the model on the larger dataset
+variance, model = train_lstm_model(X_train, y_train, SEQUENCE_LENGTH, HIDDEN_SIZE, EPOCHS, BATCH_SIZE)
+
+# Print the final estimation variance
+print(f"Final estimation variance on 1 million samples after {EPOCHS} epochs: {variance:.6f}")
