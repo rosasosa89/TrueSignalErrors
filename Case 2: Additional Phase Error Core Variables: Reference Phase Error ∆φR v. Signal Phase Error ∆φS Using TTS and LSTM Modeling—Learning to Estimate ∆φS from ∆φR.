@@ -1,1 +1,88 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+
+# Parameters
+num_samples = 1000
+time_steps = 100
+reference_phase_error_std = 0.05  # Std dev of reference phase error (rad)
+signal_phase_error_std = 0.1   # Std dev of signal phase error (rad)
+correlation = 0.7              # Correlation between reference and signal phase error
+
+# Generate synthetic dataset
+def generate_correlated_data(num_samples, time_steps, ref_std, signal_std, correlation):
+    # Generate reference phase error
+    ref_phase_error = np.random.normal(0, ref_std, size=(num_samples, time_steps))
+    # Generate signal phase error with correlation
+    signal_phase_error = correlation * ref_phase_error + \
+                         np.random.normal(0, np.sqrt(signal_std**2 * (1 - correlation**2)), size=(num_samples, time_steps))
+    return ref_phase_error, signal_phase_error
+
+# Generate correlated reference and signal phase errors
+reference_phase_error, signal_phase_error = generate_correlated_data(
+    num_samples, time_steps, reference_phase_error_std, signal_phase_error_std, correlation
+)
+
+# Prepare data for LSTM
+X = reference_phase_error.reshape(num_samples, time_steps, 1)  # Input: reference phase error
+y = signal_phase_error  # Output: signal phase error
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale the data
+scaler_X = MinMaxScaler()
+X_train = scaler_X.fit_transform(X_train.reshape(-1, 1)).reshape(X_train.shape)
+X_test = scaler_X.transform(X_test.reshape(-1, 1)).reshape(X_test.shape)
+
+scaler_y = MinMaxScaler()
+y_train = scaler_y.fit_transform(y_train)
+y_test = scaler_y.transform(y_test)
+
+
+# Build LSTM model
+model = Sequential()
+model.add(LSTM(50, activation='relu', input_shape=(time_steps, 1)))
+model.add(Dense(time_steps))  # Output layer with time_steps neurons
+
+# Compile the model
+model.compile(optimizer='adam', loss='mse')
+
+# Train the model
+model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+
+# Evaluate the model
+loss = model.evaluate(X_test, y_test, verbose=0)
+print(f"Mean Squared Error on Test Data: {loss}")
+
+# Make predictions
+y_pred = model.predict(X_test)
+
+# Inverse transform the predictions
+y_pred = scaler_y.inverse_transform(y_pred)
+y_test = scaler_y.inverse_transform(y_test)
+
+
+# Create a DataFrame for visualization
+df = pd.DataFrame({
+    'Reference_Phase_Error': reference_phase_error[0], #One sample from reference
+    'Actual_Signal_Phase_Error': y_test[0], #Corresponding signal
+    'Predicted_Signal_Phase_Error': y_pred[0] # Predicted
+})
+
+print(df.head())
+
+# Optional: Visualize results (requires matplotlib)
+# import matplotlib.pyplot as plt
+# plt.plot(df['Reference_Phase_Error'], label='Reference Phase Error')
+# plt.plot(df['Actual_Signal_Phase_Error'], label='Actual Signal Phase Error')
+# plt.plot(df['Predicted_Signal_Phase_Error'], label='Predicted Signal Phase Error')
+# plt.xlabel('Time Step')
+# plt.ylabel('Phase Error')
+# plt.legend()
+# plt.title('LSTM: Actual vs Predicted Signal Phase Error')
+# plt.show()
 
