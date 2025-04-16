@@ -1,0 +1,138 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from sklearn.metrics import mean_squared_error
+
+# Set random seed for reproducibility
+np.random.seed(42)
+tf.random.set_seed(42)
+
+# =============================================================================
+# 1. Generate Synthetic Data
+# =============================================================================
+# Define a time vector and create a ground truth signal.
+# Here, the true phase error is modeled as a sine wave with added trend.
+T = 100  # total time in arbitrary units
+num_samples = 1000  # number of time steps
+t = np.linspace(0, T, num_samples)
+true_signal = np.sin(0.2 * t) + 0.05 * t  # true phase error (ground truth)
+
+# Create a noisy measurement (reference phase error) by adding Gaussian noise.
+noise_std = 0.2
+measured_reference = true_signal + np.random.normal(0, noise_std, size=true_signal.shape)
+
+# =============================================================================
+# 2. Prepare Data for LSTM
+# =============================================================================
+# For time series prediction we use a sliding window approach.
+def create_dataset(data, target, window_size=10):
+    X, y = [], []
+    for i in range(len(data) - window_size):
+        X.append(data[i:i+window_size])
+        y.append(target[i+window_size])
+    return np.array(X), np.array(y)
+
+# Use the noisy measured reference as input and the true_signal as the target.
+window_size = 10
+X, y = create_dataset(measured_reference, true_signal, window_size)
+
+# Reshape X to be [samples, timesteps, features]
+X = np.expand_dims(X, axis=2)
+
+# Split the data into training and testing sets (80%-20% split).
+train_size = int(0.8 * len(X))
+X_train, X_test = X[:train_size], X[train_size:]
+y_train, y_test = y[:train_size], y[train_size:]
+
+# =============================================================================
+# 3. Build and Train the Synthetic LSTM Model
+# =============================================================================
+model = Sequential([
+    LSTM(50, activation='tanh', input_shape=(window_size, 1)),
+    Dense(1)
+])
+model.compile(optimizer='adam', loss='mse')
+model.summary()
+
+# Train the model
+epochs = 20
+history = model.fit(X_train, y_train, epochs=epochs, batch_size=32, validation_split=0.1, verbose=1)
+
+# Get LSTM predictions on test data
+lstm_predictions = model.predict(X_test).flatten()
+
+# =============================================================================
+# 4. Define a Simple 1D Kalman Filter Class
+# =============================================================================
+class KalmanFilter1D:
+    def __init__(self, process_var, meas_var, initial_estimate, initial_error_cov):
+        # Process variance (Q) and measurement variance (R)
+        self.Q = process_var
+        self.R = meas_var
+        self.x_est = initial_estimate  # estimated state
+        self.P = initial_error_cov     # estimation error covariance
+
+    def update(self, measurement):
+        # Prediction step: In this simplified 1D case with no control input, the state is unchanged.
+        # The error covariance increases by the process variance.
+        self.P = self.P + self.Q
+
+        # Kalman gain
+        K = self.P / (self.P + self.R)
+
+        # Correction step: update the estimate with the measurement.
+        self.x_est = self.x_est + K * (measurement - self.x_est)
+
+        # Update the error covariance.
+        self.P = (1 - K) * self.P
+
+        return self.x_est
+
+# =============================================================================
+# 5. Apply the Hybrid RNN + Kalman Filter Model on the Test Data
+# =============================================================================
+# Initialize arrays to store hybrid predictions.
+hybrid_predictions = np.zeros_like(lstm_predictions)
+
+# Set initial Kalman filter parameters.
+# Here, we assume the process variance is small because the LSTM prediction is our model.
+process_var = 1e-4
+# For the measurement noise variance, we can set a value based on the known noise in the measured_reference.
+meas_var = noise_std**2
+
+# For the initial state, we use the first LSTM prediction.
+kf = KalmanFilter1D(process_var, meas_var, initial_estimate=lstm_predictions[0], initial_error_cov=1.0)
+
+# For each time step, we use the LSTM prediction as the "prior" measurement.
+# Alternatively, one could also combine the actual measurement (reference signal) if desired.
+for i, pred in enumerate(lstm_predictions):
+    # In this example, we treat the LSTM prediction as the measurement input into the Kalman filter.
+    hybrid_predictions[i] = kf.update(pred)
+
+# =============================================================================
+# 6. Evaluate and Compare the Performance
+# =============================================================================
+# Ground truth corresponding to the test set (need to adjust for window size offset).
+y_test_truth = y_test
+
+# Compute Mean Squared Error (MSE) for both models.
+mse_lstm = mean_squared_error(y_test_truth, lstm_predictions)
+mse_hybrid = mean_squared_error(y_test_truth, hybrid_predictions)
+
+print("MSE for Synthetic LSTM Model: ", mse_lstm)
+print("MSE for Hybrid RNN + Kalman Filter Model: ", mse_hybrid)
+
+# =============================================================================
+# 7. Plot the Results for Comparison
+# =============================================================================
+plt.figure(figsize=(12, 6))
+plt.plot(y_test_truth, label='True Signal Phase Error', linewidth=2)
+plt.plot(lstm_predictions, label='Synthetic LSTM Prediction', alpha=0.7)
+plt.plot(hybrid_predictions, label='Hybrid RNN + Kalman Filter Prediction', alpha=0.7)
+plt.xlabel("Time Step")
+plt.ylabel("Phase Error")
+plt.title("Comparison of Synthetic LSTM and Hybrid RNN + Kalman Filter Predictions")
+plt.legend()
+plt.show()
