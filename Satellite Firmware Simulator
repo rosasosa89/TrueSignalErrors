@@ -1,0 +1,23 @@
+import random
+
+def satellite_protocol_fuzzer(protocol_fields):
+    fuzzed_packet = {}
+    for field, constraints in protocol_fields.items():
+        if constraints['type'] == 'int':
+            fuzzed_packet[field] = random.randint(constraints['min'] - 10, constraints['max'] + 10)
+        elif constraints['type'] == 'string':
+            fuzzed_packet[field] = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', k=random.randint(1, 20)))
+        else:
+            fuzzed_packet[field] = random.choice([None, ''])
+    return fuzzed_packet
+
+# Example protocol fields
+protocol_fields = {
+    'message_id': {'type': 'int', 'min': 0, 'max': 1000},
+    'payload_length': {'type': 'int', 'min': 0, 'max': 256},
+    'payload_data': {'type': 'string', 'min': 0, 'max': 256}
+}
+
+# Generate fuzzed packet
+fuzzed_packet = satellite_protocol_fuzzer(protocol_fields)
+print(fuzzed_packet)
