@@ -1,0 +1,19 @@
+# Sample from the SatelliteFirmwareSimulator component
+class SatelliteFirmwareSimulator:
+    def __init__(self):
+        self.state = "normal"
+        self.logs = []
+
+    def process_command(self, command):
+        # Simulate processing a command input
+        if not command or not isinstance(command, str):
+            self.logs.append("Invalid command format")
+            return False
+        # Check for fuzzing anomalies (e.g., unexpected characters or length)
+        if len(command) > 50 or any(c not in string.printable for c in command):
+            self.state = "error"
+            self.logs.append(f"Anomaly detected in command: {command}")
+            return False
+        # Simulate normal command processing
+        self.logs.append(f"Processed command: {command}")
+        return True
