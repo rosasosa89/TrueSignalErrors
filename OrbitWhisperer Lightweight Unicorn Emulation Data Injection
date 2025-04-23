@@ -1,0 +1,117 @@
+
+import os
+import random
+from unicorn import *
+from unicorn.arm_const import *
+from capstone import *
+import struct
+import matplotlib.pyplot as plt
+
+# Define memory layout
+BASE_ADDR = 0x1000000
+MEM_SIZE = 2 * 1024 * 1024  # 2MB
+
+# Load firmware binary
+def load_firmware(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+# Setup the ARM emulator
+def setup_emulator(firmware):
+    mu = Uc(UC_ARCH_ARM, UC_MODE_ARM)
+    mu.mem_map(BASE_ADDR, MEM_SIZE)
+    mu.mem_write(BASE_ADDR, firmware)
+    mu.reg_write(UC_ARM_REG_SP, BASE_ADDR + MEM_SIZE - 4)  # stack pointer
+    return mu
+
+# Disassembler (optional)
+def disassemble(firmware):
+    md = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+    print("Disassembly of firmware:")
+    for i in md.disasm(firmware[:32], BASE_ADDR):  # limit for brevity
+        print("0x%x:\t%s\t%s" % (i.address, i.mnemonic, i.op_str))
+
+# Fuzzing: inject test data into emulated memory
+def fuzz_input(mu, fuzz_data, fuzz_addr=BASE_ADDR + 0x800):
+    """
+    Injects fuzz data into the emulated memory at a specified address.
+
+    Parameters:
+        mu: Unicorn emulator instance.
+        fuzz_data: The byte string to inject.
+        fuzz_addr: The address in memory where the fuzz data will be written.
+    """
+    mu.mem_write(fuzz_addr, fuzz_data)
+    mu.reg_write(UC_ARM_REG_R0, fuzz_addr)  # Assuming R0 is where input is expected
+
+# Run emulator and catch crash events
+def run_firmware(firmware, fuzz_data):
+    mu = setup_emulator(firmware)
+    fuzz_input(mu, fuzz_data)
+
+    instruction_count = 0
+    crashed = False
+
+    # Hook to count instructions
+    def hook_code(uc, address, size, user_data):
+        nonlocal instruction_count
+        instruction_count += 1
+
+    mu.hook_add(UC_HOOK_CODE, hook_code)
+
+    try:
+        # Determine end address more dynamically.  Important:  Adjust as needed
+        # based on where you expect execution to naturally stop or loop.
+        end_address = BASE_ADDR + len(firmware)
+        mu.emu_start(BASE_ADDR, end_address, timeout=2000000)  # Timeout added
+    except UcError as e:
+        crashed = True
+        print(f"Emulation crashed with error: {e}")  # More descriptive error
+
+    return instruction_count, crashed
+
+# Simulate multiple fuzzing runs and collect stats
+def simulate_multiple_runs(firmware_path, iterations=20):
+    firmware = load_firmware(firmware_path)
+    disassemble(firmware)
+
+    results = []
+    for i in range(iterations):
+        fuzz_length = random.randint(1, 32)  # Vary fuzz data length
+        fuzz_data = bytes([random.randint(0, 255) for _ in range(fuzz_length)])
+        count, crash = run_firmware(firmware, fuzz_data)
+        results.append((count, crash))
+        print(f"Run {i+1}: Instructions={count}, Crashed={crash}")
+
+    return results
+
+# Plotting function
+def plot_results(results):
+    instruction_counts = [r[0] for r in results]
+    crashes = [1 if r[1] else 0 for r in results]
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(instruction_counts, marker='o')
+    plt.title("Instruction Count per Fuzz Run")
+    plt.xlabel("Run")
+    plt.ylabel("Instruction Count")
+
+    plt.subplot(1, 2, 2)
+    plt.bar(range(len(crashes)), crashes)
+    plt.title("Crash Detection per Run")
+    plt.xlabel("Run")
+    plt.ylabel("Crashed (1 = Yes, 0 = No)")
+
+    plt.tight_layout()
+    plt.show()
+
+if __name__ == "__main__":
+    firmware_path = "example_firmware.bin"  # dummy ARM firmware for testing
+    # Create a dummy firmware file if it doesn't exist
+    if not os.path.exists(firmware_path):
+        with open(firmware_path, "wb") as f:
+            f.write(b"\x00" * 1024)  # create a 1KB dummy file
+
+    results = simulate_multiple_runs(firmware_path, iterations=20)
+    plot_results(results)
